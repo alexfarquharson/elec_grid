@@ -1,10 +1,12 @@
+from elec_grid.spain_weather_model.data_prep import load_clean_weather_data
+
 from statsmodels.tsa.arima.model import ARIMA
-from data_prep import load_clean_weather_data
 import numpy as np
 import pandas as pd
 from sklearn.metrics import root_mean_squared_error
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+
 # build a sarima model for a feature using time series data only
 def sarima_train(df_we, feature, n_predict):
 
@@ -38,10 +40,10 @@ def sarima_train(df_we, feature, n_predict):
     plt.legend()
     return df_predictions
 
-def main(feature='temp',n_predict=25):
+def sarima_main(feature='temp',n_predict=25):
     df_we = load_clean_weather_data()
     df_predictions = sarima_train(df_we, feature = feature, n_predict = n_predict)
     return df_predictions
 
 if __name__ == '__main__':
-    main()
+    sarima_main()

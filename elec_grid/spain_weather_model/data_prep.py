@@ -1,10 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+# add repo root dir to path lib
+import sys
+sys.path.append('../../')
+# get repo root actual dir (for file reading)
+from scripts.system_helpers.repo_root import REPO_ROOT
 
 def load_clean_weather_data():
     # load data~
-    df_we = pd.read_csv('C:/Users/EAFar/.cache/kagglehub/datasets/nicholasjhana/energy-consumption-generation-prices-and-weather/versions/1/weather_features.csv')
+    df_we = pd.read_csv(f'{REPO_ROOT}/data/spain_weather_model/kagglehub/datasets/nicholasjhana/energy-consumption-generation-prices-and-weather/versions/1/weather_features.csv')
     # for madrid weather
     df_we = df_we[df_we['city_name']=='Madrid']
 

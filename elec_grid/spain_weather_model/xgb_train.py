@@ -1,15 +1,15 @@
+from elec_grid.spain_weather_model.data_prep import load_clean_weather_data
+
 from statsmodels.tsa.arima.model import ARIMA
-from data_prep import load_clean_weather_data
 import numpy as np
 import pandas as pd
 from sklearn.metrics import root_mean_squared_error
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_absolute_error
 from xgboost import XGBRegressor, XGBClassifier
 import warnings
 warnings.filterwarnings("ignore")
 
-
+# builds an xgb model
 def get_prev_values(df, feature, lag_values_list):
     # get prev 1 hr,2hr,24hr,last year - could also add last year mean
     for x in lag_values_list:
@@ -97,7 +97,7 @@ def xgb_train(df_we, features, lag_values, model_iterations = 10):
 
     return df_predictions
 
-def main(features = ['temp'], model_iterations = 1):
+def xgb_main(features = ['temp'], model_iterations = 1):
     df_we = load_clean_weather_data()
     # train xgb model on lag features and other weather features
     # diff with sarima is just train on emodel on train and predict on test (sarima) trains an individual model to predict one time step ahead
@@ -107,4 +107,4 @@ def main(features = ['temp'], model_iterations = 1):
     return df_predictions
 
 if __name__ == '__main__':
-    main()
+    xgb_main()
