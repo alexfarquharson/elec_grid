@@ -23,7 +23,7 @@ def met_office_forecast_api(baseUrl, timesteps, requestHeaders, latitude, longit
             success = True
         except Exception as e:
             retries -= 1
-            time.sleep(10)
+            # time.sleep(10)
             if retries == 0:
                 sys.exit()
 
