@@ -11,6 +11,8 @@ import pandas as pd
 # from sqlalchemy import create_engine
 # from sqlalchemy.exc import OperationalError, IntegrityError
 from sp2ts import dt2sp
+import datetime
+from dateutil.relativedelta import relativedelta
 
 # from lib.constants import SAVE_DIR, df_bm_units
 # from lib.data.utils import (
@@ -18,7 +20,76 @@ from sp2ts import dt2sp
 #     parse_boal_from_physical_data,
 #     parse_fpn_from_physical_data, logger, N_POOL_INSTANCES, add_utc_timezone,
 # )
-from elexon_api_utils import logger, N_POOL_INSTANCES, add_utc_timezone
+# from elexon_api_utils import logger, N_POOL_INSTANCES, add_utc_timezone
+
+import multiprocessing
+import pandas as pd
+
+MINUTES_TO_HOURS = 1 / 60
+N_POOL_INSTANCES = 20
+
+logger = logging.getLogger(__name__)
+multiprocessing.log_to_stderr()
+
+def create_dates_list(start_date, finish_date = None, months_delta = 3):
+    
+    start_date = datetime.datetime.strptime(start_date, "%d/%m/%Y").date()
+
+    if finish_date is not None:
+        finish_date = datetime.datetime.strptime(finish_date, "%d/%m/%Y").date()
+    else:
+        finish_date = datetime.date.today()
+    
+    dates_list =  []
+    # current_date = start_date
+    while start_date < finish_date:
+        
+        end_date = start_date + relativedelta(months=months_delta)
+        dates_list.append([start_date.strftime("%d/%m/%Y"),end_date.strftime("%d/%m/%Y")])
+        start_date = start_date + relativedelta(months=months_delta)
+    return dates_list
+
+def format_physical_data(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.rename(columns={"timeFrom": "From Time", "timeTo": "To Time", "bmUnitID": "Unit"})
+
+    df["From Time"], df["To Time"] = df["From Time"].apply(pd.to_datetime), df["To Time"].apply(pd.to_datetime)
+    return df
+
+
+def add_bm_unit_type(df: pd.DataFrame, df_bm_units: pd.DataFrame, index_name: str = "Unit") -> pd.DataFrame:
+    df = (
+        df.set_index(index_name)
+        .join(df_bm_units.set_index("SETT_BMU_ID")["FUEL TYPE"])
+        .rename(columns={"FUEL TYPE": "Fuel Type"})
+    )
+    df["Fuel Type"].fillna("Battery?", inplace=True)
+    return df.dropna(axis=1, how="all")
+
+
+def parse_fpn_from_physical_data(df: pd.DataFrame) -> pd.DataFrame:
+    df = df[df["recordType"] == "PN"]
+    df.rename(columns={f"pnLevel{x}": f"level{x}" for x in ["From", "To"]}, inplace=True)
+    return df.dropna(axis=1, how="all")
+
+
+def parse_boal_from_physical_data(df: pd.DataFrame) -> pd.DataFrame:
+    df = df[df["recordType"] == "BOALF"]
+    df.rename(
+        columns={f"bidOfferLevel{x}": f"level{x}" for x in ["From", "To"]}
+        | {"bidOfferAcceptanceNumber": "Accept ID", "acceptanceTime": "Accept Time"},
+        inplace=True,
+    )
+    return df.dropna(axis=1, how="all")
+
+
+def add_utc_timezone(datetime):
+    """ Add utc timezone to datetime. """
+    if datetime.tzinfo is None:
+        datetime = datetime.tz_localize('UTC')
+    else:
+        datetime = datetime.tz_convert('UTC')
+    return datetime
+
 
 
 logging.basicConfig(level=logging.INFO)
@@ -128,7 +199,7 @@ MAX_RETRIES = 1
 #     pull_data_once=False,
 # ):
 #     """Fetch and load FPN and BOAL data for `start_date` to `end_date` for units in `unit_ids"""
-#     # TODO clean up the preprocessing of data here
+
 #     logger = logging.getLogger(__name__)
 #     logger.setLevel(logging.DEBUG)
 
@@ -201,7 +272,10 @@ def call_physbm_api(start_date, end_date, unit=None):
     # Nedd to call PNs and BOALs separately in new API
 
     # "https://data.elexon.co.uk/bmrs/api/v1/balancing/physical/all?dataset={dataset}&settlementDate={settlementDate}&settlementPeriod={settlementPeriod}&format=json"
-    datetimes = pd.date_range(start_date, end_date, freq="30min")
+    datetimes = pd.date_range(pd.to_datetime(start_date,format = '%d/%m/%Y'), pd.to_datetime(end_date,format = '%d/%m/%Y'), freq="30min")
+    # datetimes = pd.date_range(start_date,end_date, freq="30min")
+    
+    
     data_df = []
     for datetime in datetimes:
         logger.info(f"Getting PN from {datetime}")
@@ -209,7 +283,7 @@ def call_physbm_api(start_date, end_date, unit=None):
         datetime = add_utc_timezone(datetime)
 
         date, sp = dt2sp(datetime)
-        url = f"https://data.elexon.co.uk/bmrs/api/v1/balancing/physical/all?dataset=PN&settlementDate={date}&settlementPeriod={sp}"
+        url = f"https://data.elexon.cno.uk/bmrs/api/v1/balacing/physical/all?dataset=PN&settlementDate={date}&settlementPeriod={sp}"
         if unit is not None:
             url = url + f"&bmUnit={unit}"
         url = url + "&format=json"
@@ -243,6 +317,8 @@ def call_physbm_api(start_date, end_date, unit=None):
     data_pn_df.rename(columns={"bmUnit": "bmUnitID"}, inplace=True)
     data_boa_df.rename(columns={"bmUnit": "bmUnitID"}, inplace=True)
 
+    return data_pn_df
+
     # drop dataset column
     data_boa_df.drop(columns=["nationalGridBmUnit"], inplace=True)
     data_pn_df.drop(columns=["nationalGridBmUnit"], inplace=True)
@@ -272,7 +348,9 @@ def fetch_physical_data(
 ):
     """From a brief visual inspection, this returns data that looks the same as the stuff I downloaded manually"""
     if cache:
-        file_name = save_dir / f"{start_date}-{end_date}.fthr"
+        start_date_str = start_date.replace('/','')
+        end_date_str = end_date.replace('/','')
+        file_name = save_dir / f"{start_date_str}-{end_date_str}.fthr"
         if file_name.exists():
             return pd.read_feather(file_name)
 
