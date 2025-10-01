@@ -44,7 +44,7 @@ def create_dates_list(start_date, finish_date = None, months_delta = 3):
     # current_date = start_date
     while start_date < finish_date:
         
-        end_date = start_date + relativedelta(months=months_delta)
+        end_date = min(finish_date, start_date + relativedelta(months=months_delta))
         dates_list.append([start_date.strftime("%d/%m/%Y"),end_date.strftime("%d/%m/%Y")])
         start_date = start_date + relativedelta(months=months_delta)
     return dates_list
@@ -283,7 +283,7 @@ def call_physbm_api(start_date, end_date, unit=None):
         datetime = add_utc_timezone(datetime)
 
         date, sp = dt2sp(datetime)
-        url = f"https://data.elexon.cno.uk/bmrs/api/v1/balacing/physical/all?dataset=PN&settlementDate={date}&settlementPeriod={sp}"
+        url = f"https://data.elexon.co.uk/bmrs/api/v1/balancing/physical/all?dataset=PN&settlementDate={date}&settlementPeriod={sp}"
         if unit is not None:
             url = url + f"&bmUnit={unit}"
         url = url + "&format=json"
@@ -295,7 +295,9 @@ def call_physbm_api(start_date, end_date, unit=None):
 
     data_pn_df = pd.concat(data_df)
 
-    datetimes = pd.date_range(start_date, end_date, freq="30min")
+    # return data_pn_df
+
+    datetimes = pd.date_range(pd.to_datetime(start_date,format = '%d/%m/%Y'), pd.to_datetime(end_date,format = '%d/%m/%Y'), freq="30min")
     data_df = []
     for datetime in datetimes:
         logger.info(f"Getting BOALF from {datetime}")
@@ -313,26 +315,30 @@ def call_physbm_api(start_date, end_date, unit=None):
 
     data_boa_df = pd.concat(data_df)
 
-    # rename bmUnit to bmUnitID
-    data_pn_df.rename(columns={"bmUnit": "bmUnitID"}, inplace=True)
-    data_boa_df.rename(columns={"bmUnit": "bmUnitID"}, inplace=True)
-
-    return data_pn_df
-
-    # drop dataset column
-    data_boa_df.drop(columns=["nationalGridBmUnit"], inplace=True)
-    data_pn_df.drop(columns=["nationalGridBmUnit"], inplace=True)
-    data_boa_df.drop(columns=["settlementPeriodTo"], inplace=True)
-    data_boa_df.drop(columns=["amendmentFlag"], inplace=True)
-    data_boa_df.drop(columns=["storFlag"], inplace=True)
-
-    # rename LevelFrom to bidOfferLevelFrom
-    data_pn_df.rename(columns={"dataset": "recordType"}, inplace=True)
-    data_boa_df.rename(columns={"dataset": "recordType"}, inplace=True)
-    data_boa_df.rename(columns={"acceptanceNumber": "Accept ID"}, inplace=True)
-    data_boa_df.rename(columns={"settlementPeriodFrom": "settlementPeriod"}, inplace=True)
-    data_boa_df.rename(columns={"deemedBoFlag": "deemedBidOfferFlag"}, inplace=True)
-    data_boa_df.rename(columns={"rrFlag": "rrScheduleFlag"}, inplace=True)
+    if data_boa_df.shape[0] > 0:
+        data_boa_df.drop(columns=["settlementPeriodTo"], inplace=True)
+        data_boa_df.drop(columns=["amendmentFlag"], inplace=True)
+        data_boa_df.drop(columns=["storFlag"], inplace=True)
+        data_boa_df.rename(columns={"bmUnit": "bmUnitID"}, inplace=True)
+        data_boa_df.drop(columns=["nationalGridBmUnit"], inplace=True)
+        data_boa_df.rename(columns={"dataset": "recordType"}, inplace=True)
+        data_boa_df.rename(columns={"acceptanceNumber": "Accept ID"}, inplace=True)
+        data_boa_df.rename(columns={"settlementPeriodFrom": "settlementPeriod"}, inplace=True)
+        data_boa_df.rename(columns={"deemedBoFlag": "deemedBidOfferFlag"}, inplace=True)
+        data_boa_df.rename(columns={"rrFlag": "rrScheduleFlag"}, inplace=True)
+    else:
+        data_boa_df = pd.DataFrame(columns = ['recordType', 'settlementDate', 'settlementPeriod', 'timeFrom',
+       'timeTo', 'levelFrom', 'levelTo', 'Accept ID', 'acceptanceTime',
+       'deemedBidOfferFlag', 'soFlag', 'rrScheduleFlag', 'bmUnitID'])
+    
+    if data_pn_df.shape[0] > 0:
+        data_pn_df.rename(columns={"bmUnit": "bmUnitID"}, inplace=True)
+        data_pn_df.drop(columns=["nationalGridBmUnit"], inplace=True)
+        # rename LevelFrom to bidOfferLevelFrom
+        data_pn_df.rename(columns={"dataset": "recordType"}, inplace=True)
+    else:
+        data_pn_df = pd.DataFrame(columns = ['recordType', 'settlementDate', 'settlementPeriod', 'timeFrom',
+       'timeTo', 'levelFrom', 'levelTo', 'bmUnitID'])
 
     data_df = pd.concat([data_boa_df, data_pn_df], axis=0)
     data_df['local_datetime'] = pd.to_datetime(data_df['timeFrom'])
@@ -361,6 +367,7 @@ def fetch_physical_data(
                 max_workers=int(os.getenv("N_POOL_INSTANCES", N_POOL_INSTANCES))
             ) as executor:
 
+                print('this one')
                 tasks = [executor.submit(call_physbm_api, start_date, end_date, unit) for unit in unit_ids]
 
                 for future in concurrent.futures.as_completed(tasks):

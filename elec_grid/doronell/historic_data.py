@@ -11,6 +11,8 @@ import xarray as xr
 
 config = {'start_date' : '01/01/2024',
           'end_date' : date.today().strftime('%d/%m/%Y'),
+        
+        #   'end_date' : '02/01/2024',
           'repd_name' : 'doronell',
           'elexon_id' : ['T_DOREW-1','T_DOREW-2']}
 
