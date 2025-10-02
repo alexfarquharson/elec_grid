@@ -3,7 +3,8 @@ import pandas as pd
 import xarray as xr
 import sys
 sys.path.append('../../')
-# get repo root actual dir (for file reading)
+# get repo root actual dir (for file reading) 
+# data from downlaoded manually https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download
 from helpers.system_helpers.repo_root import REPO_ROOT
 
 def linear_approximation(df, col):
@@ -51,8 +52,9 @@ def get_wind_angle(df_gcmwf):
     return df_gcmwf
 
 def ecmwf_pp():
-    
-    xr_raw = xr.open_dataset(f'{REPO_ROOT}/data/doronell_data/doronell_ecmwf.grib', engine="cfgrib")
+    '''wrapper func for processing historic ecmwf data'''
+    # data fom https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download
+    xr_raw = xr.open_dataset(f'{REPO_ROOT}/data/doronell_data/weather/raw_ecmwf.grib', engine="cfgrib")
     df_v100 = xr_raw['v100'].to_dataframe().reset_index()
     df_u100 = xr_raw['u100'].to_dataframe().reset_index()
 
@@ -64,9 +66,8 @@ def ecmwf_pp():
     # get wind direction using pythag
     df_gcmwf = get_wind_angle(df_gcmwf)
 
-
     min_time_str = df_gcmwf.time.min().strftime(format = '%H-%d/%m/%Y')
     max_time_str = df_gcmwf.time.max().strftime(format = '%H-%d/%m/%Y')
 
-    df_gcmwf.to_feather(f'{REPO_ROOT}/data/doronell_dataweather/{min_time_str}_{max_time_str}_ws.feather')
+    # df_gcmwf.to_feather(f'{REPO_ROOT}/data/doronell_data/weather/{min_time_str}_{max_time_str}_ws.feather')
     return df_gcmwf

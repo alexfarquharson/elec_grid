@@ -7,7 +7,8 @@ from helpers.system_helpers.repo_root import REPO_ROOT
 from helpers.data_helpers.elexon_api_helpers import create_dates_list, fetch_physical_data
 from helpers.constants import DATA_DIR
 from datetime import date
-import xarray as xr
+# import xarray as xr
+from helpers.data_helpers.ecmwf_helpers import ecmwf_pp
 
 config = {'start_date' : '01/01/2024',
           'end_date' : date.today().strftime('%d/%m/%Y'),
@@ -33,7 +34,6 @@ for date1,date2 in dates_list:
                         multiprocess=True, 
                         pull_data_once = False)
 
-# 2. get and process ECMWF data of doronell location
+# 2. get and process ECMWF data of doronell location - this data is downloaded manually from https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download
 # ECMWF data
-# Open GRIB file
-# ds = xr.open_dataset(f'{REPO_ROOT}/data/doronell_data/doronell_ecmwf.grib', engine="cfgrib")
+# df=ecmwf_pp()
